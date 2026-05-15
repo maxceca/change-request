@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Proyección de Facturación · CenSystems</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="header">
+    <div class="header-inner">
+      <div class="header-brand">
+        <div class="brand-dot"></div>
+        <span class="brand-name">CenSystems</span>
+        <span class="brand-sep">|</span>
+        <span class="brand-title">Notificación de Cambio en Proyección de Facturación</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+
+    <!-- ── PASO 1: Búsqueda ─────────────────────────────────────── -->
+    <section class="card" id="section-search">
+      <div class="card-header">
+        <span class="step-badge">1</span>
+        <h2 class="card-title">Buscar Proyecto</h2>
+      </div>
+      <p class="card-hint">Escribe parte del número de proyecto, nombre, cliente o PM. Se excluyen proyectos de tipo Suministro.</p>
+      <div class="search-row">
+        <input
+          id="search-input"
+          class="search-input"
+          type="text"
+          placeholder="Ej: PRY-2024, Banco, García..."
+          autocomplete="off"
+        />
+        <button id="btn-search" class="btn btn-primary">Buscar</button>
+      </div>
+
+      <div id="search-status" class="search-status hidden"></div>
+
+      <div id="results-wrapper" class="results-wrapper hidden">
+        <table class="results-table" id="results-table">
+          <thead>
+            <tr>
+              <th>Proyecto</th>
+              <th>Nombre</th>
+              <th>Cliente</th>
+              <th>PM</th>
+              <th>Moneda</th>
+            </tr>
+          </thead>
+          <tbody id="results-body"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ── PASO 2: Formulario ───────────────────────────────────── -->
+    <section class="card hidden" id="section-form">
+      <div class="card-header">
+        <span class="step-badge">2</span>
+        <h2 class="card-title">Registrar Cambio</h2>
+      </div>
+
+      <!-- Proyecto seleccionado (readonly) -->
+      <div class="selected-project" id="selected-project-info">
+        <span class="selected-label">Proyecto seleccionado:</span>
+        <span id="sel-proyecto" class="sel-val"></span>
+        <span id="sel-nombre" class="sel-val muted"></span>
+        <span id="sel-cliente" class="sel-val muted"></span>
+        <button id="btn-change" class="btn-link" type="button">Cambiar</button>
+      </div>
+
+      <form id="notification-form" novalidate>
+
+        <div class="form-grid">
+
+          <!-- PM -->
+          <div class="form-group">
+            <label for="pm-select">PM que reporta <span class="req">*</span></label>
+            <select id="pm-select" name="pm" required>
+              <option value="">— Selecciona tu nombre —</option>
+              <option value="aceron@censys.com.mx"        data-name="Alan Cerón Cardonne">Alan Cerón Cardonne</option>
+              <option value="frodriguez@censystems.com.mx" data-name="Fabiola Rodríguez Granados">Fabiola Rodríguez Granados</option>
+              <option value="gsantamaria@censys.com.mx"   data-name="Gabriel Santamaría Pacheco">Gabriel Santamaría Pacheco</option>
+              <option value="iochoa@censystems.com.mx"    data-name="Ingrid Ochoa">Ingrid Ochoa</option>
+              <option value="icastilla@censys.com.mx"     data-name="Irving Castilla Castillo">Irving Castilla Castillo</option>
+              <option value="jromero@censystems.com.mx"   data-name="José Juan Romero Solares">José Juan Romero Solares</option>
+              <option value="oosorio@censystems.com.mx"   data-name="Omar Osorio Martínez">Omar Osorio Martínez</option>
+              <option value="valcaraz@censystems.com.mx"  data-name="Víctor Manuel Alcaraz Miranda">Víctor Manuel Alcaraz Miranda</option>
+            </select>
+          </div>
+
+          <!-- Causa -->
+          <div class="form-group">
+            <label for="causa-select">Causa del cambio <span class="req">*</span></label>
+            <select id="causa-select" name="causa" required>
+              <option value="">— Selecciona la causa —</option>
+              <option>Pendiente de Orden de Compra</option>
+              <option>Cambio de fecha de migración por el cliente</option>
+              <option>Atraso en implementación</option>
+              <option>Solicitud de cliente</option>
+              <option>Equipo atrasado en salida de fábrica</option>
+              <option>Otra</option>
+            </select>
+          </div>
+
+          <!-- Monto -->
+          <div class="form-group">
+            <label for="monto-input">Monto a facturar que cambia de fecha <span class="req">*</span></label>
+            <div class="input-prefix-wrap">
+              <span class="input-prefix">$</span>
+              <input
+                id="monto-input"
+                type="number"
+                name="monto"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+                required
+              />
+            </div>
+          </div>
+
+          <!-- Nueva fecha -->
+          <div class="form-group">
+            <label>Nueva fecha de proyección <span class="req">*</span></label>
+            <div class="date-row">
+              <select id="mes-select" name="nuevoMes" required>
+                <option value="">Mes</option>
+                <option value="1">Enero</option>
+                <option value="2">Febrero</option>
+                <option value="3">Marzo</option>
+                <option value="4">Abril</option>
+                <option value="5">Mayo</option>
+                <option value="6">Junio</option>
+                <option value="7">Julio</option>
+                <option value="8">Agosto</option>
+                <option value="9">Septiembre</option>
+                <option value="10">Octubre</option>
+                <option value="11">Noviembre</option>
+                <option value="12">Diciembre</option>
+              </select>
+              <select id="anio-select" name="nuevoAnio" required>
+                <option value="">Año</option>
+              </select>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Comentario -->
+        <div class="form-group full-width">
+          <label for="comentario-input">Comentario / Motivo detallado <span class="req">*</span></label>
+          <textarea
+            id="comentario-input"
+            name="comentario"
+            rows="5"
+            placeholder="Explica el contexto del cambio, conversaciones con el cliente, acciones tomadas o cualquier detalle relevante..."
+            required
+          ></textarea>
+          <span class="char-count" id="char-count">0 / 1000</span>
+        </div>
+
+        <div id="form-error" class="alert alert-error hidden"></div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary btn-lg" id="btn-submit">
+            <span id="btn-submit-text">Enviar Notificación</span>
+            <span id="btn-submit-loader" class="loader hidden"></span>
+          </button>
+        </div>
+
+      </form>
+    </section>
+
+    <!-- ── CONFIRMACIÓN ─────────────────────────────────────────── -->
+    <section class="card hidden" id="section-confirm">
+      <div class="confirm-icon">✓</div>
+      <h2 class="confirm-title">Notificación enviada</h2>
+      <p class="confirm-msg" id="confirm-detail"></p>
+      <button class="btn btn-outline" id="btn-nueva">Registrar otro cambio</button>
+    </section>
+
+  </main>
+
+  <footer class="footer">CenSystems · PMO · <span id="footer-year"></span></footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
