@@ -3,7 +3,9 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Proyección de Facturación · CenSystems</title>
+  <title>Proyección de Facturación · Cen Systems</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -12,7 +14,7 @@
     <div class="header-inner">
       <div class="header-brand">
         <div class="brand-dot"></div>
-        <span class="brand-name">CenSystems</span>
+        <span class="brand-name">Cen Systems</span>
         <span class="brand-sep">|</span>
         <span class="brand-title">Notificación de Cambio en Proyección de Facturación</span>
       </div>
@@ -24,32 +26,34 @@
     <!-- ── PASO 1: Búsqueda ─────────────────────────────────────── -->
     <section class="card" id="section-search">
       <div class="card-header">
-        <span class="step-badge">1</span>
+        <span class="step-badge" aria-label="Paso 1">1</span>
         <h2 class="card-title">Buscar Proyecto</h2>
       </div>
       <p class="card-hint">Escribe parte del número de proyecto, nombre, cliente o PM. Se excluyen proyectos de tipo Suministro.</p>
       <div class="search-row">
+        <label for="search-input" class="sr-only">Buscar proyecto por número, nombre, cliente o PM</label>
         <input
           id="search-input"
           class="search-input"
           type="text"
           placeholder="Ej: PRY-2024, Banco, García..."
           autocomplete="off"
+          aria-describedby="search-status"
         />
         <button id="btn-search" class="btn btn-primary">Buscar</button>
       </div>
 
-      <div id="search-status" class="search-status hidden"></div>
+      <div id="search-status" class="search-status hidden" role="status" aria-live="polite" aria-atomic="true"></div>
 
       <div id="results-wrapper" class="results-wrapper hidden">
-        <table class="results-table" id="results-table">
+        <table class="results-table" id="results-table" aria-label="Resultados de búsqueda">
           <thead>
             <tr>
-              <th>Proyecto</th>
-              <th>Nombre</th>
-              <th>Cliente</th>
-              <th>PM</th>
-              <th>Moneda</th>
+              <th scope="col">Proyecto</th>
+              <th scope="col">Nombre</th>
+              <th scope="col">Cliente</th>
+              <th scope="col">PM</th>
+              <th scope="col">Moneda</th>
             </tr>
           </thead>
           <tbody id="results-body"></tbody>
@@ -60,12 +64,11 @@
     <!-- ── PASO 2: Formulario ───────────────────────────────────── -->
     <section class="card hidden" id="section-form">
       <div class="card-header">
-        <span class="step-badge">2</span>
+        <span class="step-badge" aria-label="Paso 2">2</span>
         <h2 class="card-title">Registrar Cambio</h2>
       </div>
 
-      <!-- Proyecto seleccionado (readonly) -->
-      <div class="selected-project" id="selected-project-info">
+      <div class="selected-project" id="selected-project-info" aria-live="polite">
         <span class="selected-label">Proyecto seleccionado:</span>
         <span id="sel-proyecto" class="sel-val"></span>
         <span id="sel-nombre" class="sel-val muted"></span>
@@ -79,24 +82,24 @@
 
           <!-- PM -->
           <div class="form-group">
-            <label for="pm-select">PM que reporta <span class="req">*</span></label>
-            <select id="pm-select" name="pm" required>
+            <label for="pm-select">PM que reporta <span class="req" aria-hidden="true">*</span><span class="sr-only">(requerido)</span></label>
+            <select id="pm-select" name="pm" required aria-required="true">
               <option value="">— Selecciona tu nombre —</option>
-              <option value="aceron@censys.com.mx"        data-name="Alan Cerón Cardonne">Alan Cerón Cardonne</option>
+              <option value="aceron@censys.com.mx"         data-name="Alan Cerón Cardonne">Alan Cerón Cardonne</option>
               <option value="frodriguez@censystems.com.mx" data-name="Fabiola Rodríguez Granados">Fabiola Rodríguez Granados</option>
-              <option value="gsantamaria@censys.com.mx"   data-name="Gabriel Santamaría Pacheco">Gabriel Santamaría Pacheco</option>
-              <option value="iochoa@censystems.com.mx"    data-name="Ingrid Ochoa">Ingrid Ochoa</option>
-              <option value="icastilla@censys.com.mx"     data-name="Irving Castilla Castillo">Irving Castilla Castillo</option>
-              <option value="jromero@censystems.com.mx"   data-name="José Juan Romero Solares">José Juan Romero Solares</option>
-              <option value="oosorio@censystems.com.mx"   data-name="Omar Osorio Martínez">Omar Osorio Martínez</option>
-              <option value="valcaraz@censystems.com.mx"  data-name="Víctor Manuel Alcaraz Miranda">Víctor Manuel Alcaraz Miranda</option>
+              <option value="gsantamaria@censys.com.mx"    data-name="Gabriel Santamaría Pacheco">Gabriel Santamaría Pacheco</option>
+              <option value="iochoa@censystems.com.mx"     data-name="Ingrid Ochoa">Ingrid Ochoa</option>
+              <option value="icastilla@censys.com.mx"      data-name="Irving Castilla Castillo">Irving Castilla Castillo</option>
+              <option value="jromero@censystems.com.mx"    data-name="José Juan Romero Solares">José Juan Romero Solares</option>
+              <option value="oosorio@censystems.com.mx"    data-name="Omar Osorio Martínez">Omar Osorio Martínez</option>
+              <option value="valcaraz@censystems.com.mx"   data-name="Víctor Manuel Alcaraz Miranda">Víctor Manuel Alcaraz Miranda</option>
             </select>
           </div>
 
           <!-- Causa -->
           <div class="form-group">
-            <label for="causa-select">Causa del cambio <span class="req">*</span></label>
-            <select id="causa-select" name="causa" required>
+            <label for="causa-select">Causa del cambio <span class="req" aria-hidden="true">*</span><span class="sr-only">(requerido)</span></label>
+            <select id="causa-select" name="causa" required aria-required="true">
               <option value="">— Selecciona la causa —</option>
               <option>Pendiente de Orden de Compra</option>
               <option>Cambio de fecha de migración por el cliente</option>
@@ -109,9 +112,9 @@
 
           <!-- Monto -->
           <div class="form-group">
-            <label for="monto-input">Monto a facturar que cambia de fecha <span class="req">*</span></label>
+            <label for="monto-input">Monto a facturar que cambia de fecha <span class="req" aria-hidden="true">*</span><span class="sr-only">(requerido)</span></label>
             <div class="input-prefix-wrap">
-              <span class="input-prefix">$</span>
+              <span class="input-prefix" id="moneda-prefix" aria-hidden="true">$</span>
               <input
                 id="monto-input"
                 type="number"
@@ -120,56 +123,67 @@
                 step="0.01"
                 placeholder="0.00"
                 required
+                aria-required="true"
+                aria-labelledby="moneda-prefix"
               />
             </div>
           </div>
 
           <!-- Nueva fecha -->
           <div class="form-group">
-            <label>Nueva fecha de proyección <span class="req">*</span></label>
-            <div class="date-row">
-              <select id="mes-select" name="nuevoMes" required>
-                <option value="">Mes</option>
-                <option value="1">Enero</option>
-                <option value="2">Febrero</option>
-                <option value="3">Marzo</option>
-                <option value="4">Abril</option>
-                <option value="5">Mayo</option>
-                <option value="6">Junio</option>
-                <option value="7">Julio</option>
-                <option value="8">Agosto</option>
-                <option value="9">Septiembre</option>
-                <option value="10">Octubre</option>
-                <option value="11">Noviembre</option>
-                <option value="12">Diciembre</option>
-              </select>
-              <select id="anio-select" name="nuevoAnio" required>
-                <option value="">Año</option>
-              </select>
-            </div>
+            <fieldset style="border:none;padding:0;margin:0;">
+              <legend style="font-size:13px;font-weight:600;color:var(--cen-black);margin-bottom:6px;padding:0;">
+                Nueva fecha de proyección <span class="req" aria-hidden="true">*</span><span class="sr-only">(requerido)</span>
+              </legend>
+              <div class="date-row">
+                <label for="mes-select" class="sr-only">Mes</label>
+                <select id="mes-select" name="nuevoMes" required aria-required="true">
+                  <option value="">Mes</option>
+                  <option value="1">Enero</option>
+                  <option value="2">Febrero</option>
+                  <option value="3">Marzo</option>
+                  <option value="4">Abril</option>
+                  <option value="5">Mayo</option>
+                  <option value="6">Junio</option>
+                  <option value="7">Julio</option>
+                  <option value="8">Agosto</option>
+                  <option value="9">Septiembre</option>
+                  <option value="10">Octubre</option>
+                  <option value="11">Noviembre</option>
+                  <option value="12">Diciembre</option>
+                </select>
+                <label for="anio-select" class="sr-only">Año</label>
+                <select id="anio-select" name="nuevoAnio" required aria-required="true">
+                  <option value="">Año</option>
+                </select>
+              </div>
+            </fieldset>
           </div>
 
         </div>
 
         <!-- Comentario -->
         <div class="form-group full-width">
-          <label for="comentario-input">Comentario / Motivo detallado <span class="req">*</span></label>
+          <label for="comentario-input">Comentario / Motivo detallado <span class="req" aria-hidden="true">*</span><span class="sr-only">(requerido)</span></label>
           <textarea
             id="comentario-input"
             name="comentario"
             rows="5"
             placeholder="Explica el contexto del cambio, conversaciones con el cliente, acciones tomadas o cualquier detalle relevante..."
             required
+            aria-required="true"
+            aria-describedby="char-count"
+            maxlength="1000"
           ></textarea>
-          <span class="char-count" id="char-count">0 / 1000</span>
+          <span class="char-count" id="char-count" aria-live="polite">0 / 1000</span>
         </div>
 
-        <div id="form-error" class="alert alert-error hidden"></div>
+        <div id="form-error" class="alert alert-error hidden" role="alert" aria-live="assertive"></div>
 
         <div class="form-actions">
           <button type="submit" class="btn btn-primary btn-lg" id="btn-submit">
             <span id="btn-submit-text">Enviar Notificación</span>
-            <span id="btn-submit-loader" class="loader hidden"></span>
+            <span id="btn-submit-loader" class="loader hidden" aria-hidden="true"></span>
           </button>
         </div>
 
@@ -177,8 +191,8 @@
     </section>
 
     <!-- ── CONFIRMACIÓN ─────────────────────────────────────────── -->
-    <section class="card hidden" id="section-confirm">
-      <div class="confirm-icon">✓</div>
+    <section class="card hidden" id="section-confirm" aria-live="polite">
+      <div class="confirm-icon" aria-hidden="true">✓</div>
       <h2 class="confirm-title">Notificación enviada</h2>
       <p class="confirm-msg" id="confirm-detail"></p>
       <button class="btn btn-outline" id="btn-nueva">Registrar otro cambio</button>
@@ -186,7 +200,10 @@
 
   </main>
 
-  <footer class="footer">CenSystems · PMO · <span id="footer-year"></span></footer>
+  <footer class="footer">
+    Cen Systems S.A. de C.V. · Cisco Gold Partner · PMO · <span id="footer-year"></span><br>
+    <span style="font-size:11px;">Este sistema es propiedad de Cen Systems S.A. de C.V., queda prohibido cualquier uso o reproducción no autorizada.</span>
+  </footer>
 
   <script src="app.js"></script>
 </body>

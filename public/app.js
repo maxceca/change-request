@@ -21,6 +21,7 @@ const form            = document.getElementById('notification-form');
 const pmSelect        = document.getElementById('pm-select');
 const causaSelect     = document.getElementById('causa-select');
 const montoInput      = document.getElementById('monto-input');
+const monedaPrefix    = document.getElementById('moneda-prefix');
 const mesSelect       = document.getElementById('mes-select');
 const anioSelect      = document.getElementById('anio-select');
 const comentarioInput = document.getElementById('comentario-input');
@@ -37,12 +38,12 @@ const footerYear      = document.getElementById('footer-year');
 /* ── Init ──────────────────────────────────────────────────── */
 footerYear.textContent = new Date().getFullYear();
 
-// Populate year dropdown (current year + next 3)
 const currentYear = new Date().getFullYear();
-for (let y = currentYear; y <= currentYear + 3; y++) {
+for (let y = currentYear - 1; y <= currentYear + 4; y++) {
   const opt = document.createElement('option');
   opt.value = y;
   opt.textContent = y;
+  if (y === currentYear) opt.selected = false;
   anioSelect.appendChild(opt);
 }
 
@@ -63,10 +64,13 @@ async function doSearch() {
 
   try {
     const res = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
-    if (!res.ok) throw new Error(`Error del servidor: ${res.status}`);
+    if (!res.ok) throw new Error(
+      res.status >= 500
+        ? 'Hubo un problema en el servidor. Intenta de nuevo en unos momentos.'
+        : `No se pudo completar la búsqueda (${res.status}).`
+    );
     const rows = await res.json();
-
-    if (rows.error) throw new Error(rows.error);
+    if (rows.error) throw new Error('No se pudo conectar con la base de datos. Intenta más tarde.');
 
     if (rows.length === 0) {
       showStatus('No se encontraron proyectos. Intenta con otro término.');
@@ -99,6 +103,10 @@ function renderResults(rows) {
     tr.dataset.pm           = row.pm            || '';
     tr.dataset.moneda       = row.moneda        || '';
 
+    tr.setAttribute('tabindex', '0');
+    tr.setAttribute('role', 'button');
+    tr.setAttribute('aria-label', `Seleccionar proyecto ${row.proyecto} — ${row.nombre_cliente}`);
+
     tr.innerHTML = `
       <td>${esc(row.proyecto)}</td>
       <td>${esc(row.nombre)}</td>
@@ -107,6 +115,7 @@ function renderResults(rows) {
       <td><span class="moneda-badge moneda-${(row.moneda||'').toLowerCase()}">${esc(row.moneda)}</span></td>
     `;
     tr.addEventListener('click', () => selectProject(tr));
+    tr.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') selectProject(tr); });
     resultsBody.appendChild(tr);
   });
 }
@@ -124,16 +133,24 @@ function selectProject(tr) {
   };
 
   selProyecto.textContent = selectedProject.proyecto;
-  selNombre.textContent   = selectedProject.nombre ? `· ${selectedProject.nombre}` : '';
+  selNombre.textContent   = selectedProject.nombre       ? `· ${selectedProject.nombre}` : '';
   selCliente.textContent  = selectedProject.nombreCliente ? `· ${selectedProject.nombreCliente}` : '';
+
+  // Update currency prefix dynamically
+  monedaPrefix.textContent = selectedProject.moneda ? `${selectedProject.moneda} $` : '$';
 
   sectionForm.classList.remove('hidden');
   sectionForm.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
-/* ── Change project link ───────────────────────────────────── */
+/* ── Change project ────────────────────────────────────────── */
 btnChange.addEventListener('click', () => {
   sectionForm.classList.add('hidden');
+  form.reset();
+  clearInvalid();
+  charCount.textContent = '0 / 1000';
+  formError.classList.add('hidden');
+  monedaPrefix.textContent = '$';
   sectionSearch.scrollIntoView({ behavior: 'smooth', block: 'start' });
   searchInput.focus();
 });
@@ -142,10 +159,6 @@ btnChange.addEventListener('click', () => {
 comentarioInput.addEventListener('input', () => {
   const len = comentarioInput.value.length;
   charCount.textContent = `${len} / 1000`;
-  if (len > 1000) {
-    comentarioInput.value = comentarioInput.value.slice(0, 1000);
-    charCount.textContent = '1000 / 1000';
-  }
 });
 
 /* ── Form submit ───────────────────────────────────────────── */
@@ -155,14 +168,13 @@ form.addEventListener('submit', async e => {
   clearInvalid();
 
   if (!selectedProject) {
-    showFormError('Selecciona un proyecto de la búsqueda.');
+    showFormError('Selecciona un proyecto de la búsqueda antes de continuar.');
     return;
   }
 
   const pmOption = pmSelect.options[pmSelect.selectedIndex];
   const pmEmail  = pmSelect.value;
   const pmNombre = pmOption?.dataset?.name || '';
-
   const causa     = causaSelect.value;
   const monto     = montoInput.value.trim();
   const nuevoMes  = mesSelect.value;
@@ -179,7 +191,7 @@ form.addEventListener('submit', async e => {
   if (!comentario) { markInvalid(comentarioInput); valid = false; }
 
   if (!valid) {
-    showFormError('Por favor completa todos los campos requeridos.');
+    showFormError('Por favor completa todos los campos marcados en rojo.');
     return;
   }
 
@@ -208,13 +220,16 @@ form.addEventListener('submit', async e => {
     const data = await res.json();
 
     if (!res.ok || !data.success) {
-      throw new Error(data.error || `Error ${res.status}`);
+      throw new Error(data.error || (res.status >= 500
+        ? 'Ocurrió un error en el servidor. Intenta de nuevo en unos momentos.'
+        : `Error al enviar (${res.status}). Verifica tu conexión.`));
     }
 
-    const MONTHS = ['', 'Enero','Febrero','Marzo','Abril','Mayo','Junio',
+    const MONTHS = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio',
                     'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
     confirmDetail.textContent =
-      `Proyecto ${payload.proyecto} registrado. Nueva fecha: ${MONTHS[payload.nuevoMes]} ${payload.nuevoAnio}. ` +
+      `Proyecto ${payload.proyecto} registrado correctamente. ` +
+      `Nueva fecha de proyección: ${MONTHS[payload.nuevoMes]} ${payload.nuevoAnio}. ` +
       `Se enviaron correos a todos los involucrados.`;
 
     sectionSearch.classList.add('hidden');
@@ -235,6 +250,7 @@ btnNueva.addEventListener('click', () => {
   form.reset();
   charCount.textContent = '0 / 1000';
   formError.classList.add('hidden');
+  monedaPrefix.textContent = '$';
   resultsWrapper.classList.add('hidden');
   searchStatus.classList.add('hidden');
   searchInput.value = '';
@@ -242,24 +258,32 @@ btnNueva.addEventListener('click', () => {
   sectionForm.classList.add('hidden');
   sectionSearch.classList.remove('hidden');
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  searchInput.focus();
 });
 
 /* ── Helpers ───────────────────────────────────────────────── */
 function esc(str) {
-  return String(str ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  return String(str ?? '')
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 function showFormError(msg) {
   formError.textContent = msg;
   formError.classList.remove('hidden');
   formError.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  formError.focus();
 }
-function markInvalid(el) { el.classList.add('invalid'); }
+function markInvalid(el) {
+  el.classList.add('invalid');
+  el.setAttribute('aria-invalid', 'true');
+}
 function clearInvalid() {
   [pmSelect, causaSelect, montoInput, mesSelect, anioSelect, comentarioInput]
-    .forEach(el => el.classList.remove('invalid'));
+    .forEach(el => { el.classList.remove('invalid'); el.removeAttribute('aria-invalid'); });
 }
 function setLoading(on) {
   btnSubmit.disabled = on;
   btnSubmitText.textContent = on ? 'Enviando...' : 'Enviar Notificación';
   btnSubmitLoader.classList.toggle('hidden', !on);
+  btnSubmit.setAttribute('aria-busy', on ? 'true' : 'false');
 }

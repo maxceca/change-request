@@ -14,6 +14,18 @@ const CSV_HEADERS = [
 const MONTHS = ['','Enero','Febrero','Marzo','Abril','Mayo','Junio',
                 'Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
+// Allowed PM emails — validated on server to prevent impersonation
+const ALLOWED_PM_EMAILS = new Set([
+  'aceron@censys.com.mx',
+  'frodriguez@censystems.com.mx',
+  'gsantamaria@censys.com.mx',
+  'iochoa@censystems.com.mx',
+  'icastilla@censys.com.mx',
+  'jromero@censystems.com.mx',
+  'oosorio@censystems.com.mx',
+  'valcaraz@censystems.com.mx',
+]);
+
 const FIXED_TO = [
   { emailAddress: { address: 'aceron@censys.com.mx',                 name: 'Alan Cerón Cardonne' } },
   { emailAddress: { address: 'frodriguez@censystems.com.mx',         name: 'Fabiola Rodríguez Granados' } },
@@ -27,19 +39,43 @@ const FIXED_TO = [
   { emailAddress: { address: 'proyectos_finanzas@censystems.com.mx', name: 'Proyectos Finanzas' } },
 ];
 
+const ALLOWED_CAUSES = new Set([
+  'Pendiente de Orden de Compra',
+  'Cambio de fecha de migración por el cliente',
+  'Atraso en implementación',
+  'Solicitud de cliente',
+  'Equipo atrasado en salida de fábrica',
+  'Otra',
+]);
+
 const CORS = {
-  'Access-Control-Allow-Origin':  '*',
+  'Access-Control-Allow-Origin':  process.env.ALLOWED_ORIGIN || '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
 };
 
+// Escape HTML to prevent XSS in email body
+function htmlEsc(s) {
+  return String(s ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;');
+}
+
+// Sanitize CSV cell — escape formula injection prefixes
+function csvCell(v) {
+  let s = String(v ?? '');
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  if (s.includes(',') || s.includes('"') || s.includes('\n'))
+    s = `"${s.replace(/"/g, '""')}"`;
+  return s;
+}
+
 function csvRow(values) {
-  return values.map(v => {
-    const s = String(v ?? '');
-    return s.includes(',') || s.includes('"') || s.includes('\n')
-      ? `"${s.replace(/"/g, '""')}"` : s;
-  }).join(',');
+  return values.map(csvCell).join(',');
 }
 
 async function getGraphToken() {
@@ -57,7 +93,7 @@ async function getGraphToken() {
     }
   );
   const data = await res.json();
-  if (!data.access_token) throw new Error(`Graph token error: ${JSON.stringify(data)}`);
+  if (!data.access_token) throw new Error('Error al autenticar con el servicio de correo.');
   return data.access_token;
 }
 
@@ -81,7 +117,7 @@ async function appendGitHubCSV(row) {
   } else if (getRes.status === 404) {
     existing = csvRow(CSV_HEADERS);
   } else {
-    throw new Error(`GitHub GET error: ${getRes.status}`);
+    throw new Error('Error al acceder al registro de notificaciones.');
   }
 
   const updated = existing + '\n' + csvRow(row);
@@ -92,45 +128,95 @@ async function appendGitHubCSV(row) {
   };
 
   const putRes = await fetch(url, { method: 'PUT', headers: ghHeaders, body: JSON.stringify(body) });
-  if (!putRes.ok) throw new Error(`GitHub PUT error: ${putRes.status} ${await putRes.text()}`);
+  if (!putRes.ok) throw new Error('Error al guardar el registro. Intenta de nuevo.');
 }
 
 async function sendEmail(token, d, ts) {
-  const mes = MONTHS[d.nuevoMes] || d.nuevoMes;
-  const moneda = d.moneda || '';
-  const monto = `$${Number(d.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} ${moneda}`.trim();
-  const subject = `[Cambio de Proyección] ${d.proyecto} – ${d.nombreCliente} | ${d.causa} | ${mes} ${d.nuevoAnio}`;
+  const mes     = MONTHS[d.nuevoMes] || d.nuevoMes;
+  const moneda  = htmlEsc(d.moneda || '');
+  const monto   = `$${Number(d.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} ${moneda}`.trim();
+  const subject = `[Cambio de Proyección] ${htmlEsc(d.proyecto)} – ${htmlEsc(d.nombreCliente)} | ${htmlEsc(d.causa)} | ${mes} ${d.nuevoAnio}`;
 
   const recipients = [...FIXED_TO];
   const fixed = new Set(FIXED_TO.map(r => r.emailAddress.address.toLowerCase()));
   if (d.pmEmail && !fixed.has(d.pmEmail.toLowerCase())) {
-    recipients.push({ emailAddress: { address: d.pmEmail, name: d.pmNombre } });
+    recipients.push({ emailAddress: { address: d.pmEmail, name: htmlEsc(d.pmNombre) } });
   }
 
+  // All user-supplied values are escaped with htmlEsc before interpolation
   const html = `
-<html><body style="font-family:Segoe UI,Arial,sans-serif;color:#1a1a2e;margin:0;padding:0;">
-<div style="max-width:640px;margin:32px auto;border:1px solid #e0e0e0;border-radius:8px;overflow:hidden;">
-  <div style="background:#003366;padding:24px 32px;">
-    <h2 style="margin:0;color:#fff;font-size:20px;">Cambio en Proyección de Facturación</h2>
-    <p style="margin:6px 0 0;color:#b3c6e0;font-size:13px;">Notificación automática · ${ts}</p>
-  </div>
-  <div style="padding:28px 32px;">
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      <tr style="background:#f4f7fb;"><td style="padding:10px 14px;font-weight:600;width:42%;border-bottom:1px solid #e0e0e0;">Proyecto</td><td style="padding:10px 14px;border-bottom:1px solid #e0e0e0;">${d.proyecto}</td></tr>
-      <tr><td style="padding:10px 14px;font-weight:600;border-bottom:1px solid #e0e0e0;">Nombre</td><td style="padding:10px 14px;border-bottom:1px solid #e0e0e0;">${d.nombre}</td></tr>
-      <tr style="background:#f4f7fb;"><td style="padding:10px 14px;font-weight:600;border-bottom:1px solid #e0e0e0;">Cliente</td><td style="padding:10px 14px;border-bottom:1px solid #e0e0e0;">${d.nombreCliente}</td></tr>
-      <tr><td style="padding:10px 14px;font-weight:600;border-bottom:1px solid #e0e0e0;">PM Responsable</td><td style="padding:10px 14px;border-bottom:1px solid #e0e0e0;">${d.pmNombre}</td></tr>
-      <tr style="background:#f4f7fb;"><td style="padding:10px 14px;font-weight:600;border-bottom:1px solid #e0e0e0;">Causa del Cambio</td><td style="padding:10px 14px;border-bottom:1px solid #e0e0e0;color:#c0392b;font-weight:600;">${d.causa}</td></tr>
-      <tr><td style="padding:10px 14px;font-weight:600;border-bottom:1px solid #e0e0e0;">Monto Afectado</td><td style="padding:10px 14px;border-bottom:1px solid #e0e0e0;font-size:16px;font-weight:700;color:#003366;">${monto}</td></tr>
-      <tr style="background:#f4f7fb;"><td style="padding:10px 14px;font-weight:600;">Nueva Fecha de Proyección</td><td style="padding:10px 14px;font-weight:700;color:#27ae60;">${mes} ${d.nuevoAnio}</td></tr>
-    </table>
-    <div style="margin-top:24px;background:#f9f9f9;border-left:4px solid #003366;padding:16px 20px;border-radius:0 6px 6px 0;">
-      <p style="margin:0 0 6px;font-weight:600;font-size:13px;color:#003366;">Comentario del PM</p>
-      <p style="margin:0;font-size:14px;line-height:1.6;white-space:pre-wrap;">${d.comentario}</p>
-    </div>
-  </div>
-  <div style="background:#f4f7fb;padding:14px 32px;font-size:12px;color:#888;text-align:center;">CenSystems · Sistema de Proyección de Facturación · ${ts}</div>
-</div></body></html>`;
+<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/></head>
+<body style="margin:0;padding:0;background:#F5F5F5;font-family:'Open Sans',Arial,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#F5F5F5;padding:32px 16px;">
+<tr><td align="center">
+<table width="600" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:4px;overflow:hidden;border:1px solid #e4e8ec;">
+  <tr>
+    <td style="background:#101820;padding:24px 32px;border-bottom:3px solid #97D700;">
+      <p style="margin:0;font-size:11px;color:#97D700;font-weight:700;letter-spacing:1px;text-transform:uppercase;">Cen Systems S.A. de C.V. · Cisco Gold Partner</p>
+      <h1 style="margin:8px 0 0;color:#ffffff;font-size:20px;font-weight:700;font-family:'Open Sans',Arial,sans-serif;">Cambio en Proyección de Facturación</h1>
+      <p style="margin:6px 0 0;color:#919D9D;font-size:12px;">Notificación automática &nbsp;·&nbsp; ${htmlEsc(ts)}</p>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:28px 32px 0;">
+      <table width="100%" cellpadding="0" cellspacing="0" style="font-size:14px;border-collapse:collapse;">
+        <tr style="background:#F5F5F5;">
+          <td style="padding:11px 14px;font-weight:600;color:#101820;width:40%;border-bottom:1px solid #e4e8ec;">Proyecto</td>
+          <td style="padding:11px 14px;color:#717C7D;border-bottom:1px solid #e4e8ec;">${htmlEsc(d.proyecto)}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 14px;font-weight:600;color:#101820;border-bottom:1px solid #e4e8ec;">Nombre</td>
+          <td style="padding:11px 14px;color:#717C7D;border-bottom:1px solid #e4e8ec;">${htmlEsc(d.nombre)}</td>
+        </tr>
+        <tr style="background:#F5F5F5;">
+          <td style="padding:11px 14px;font-weight:600;color:#101820;border-bottom:1px solid #e4e8ec;">Cliente</td>
+          <td style="padding:11px 14px;color:#717C7D;border-bottom:1px solid #e4e8ec;">${htmlEsc(d.nombreCliente)}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 14px;font-weight:600;color:#101820;border-bottom:1px solid #e4e8ec;">PM Responsable</td>
+          <td style="padding:11px 14px;color:#717C7D;border-bottom:1px solid #e4e8ec;">${htmlEsc(d.pmNombre)}</td>
+        </tr>
+        <tr style="background:#F5F5F5;">
+          <td style="padding:11px 14px;font-weight:600;color:#101820;border-bottom:1px solid #e4e8ec;">Causa del Cambio</td>
+          <td style="padding:11px 14px;color:#D62828;font-weight:700;border-bottom:1px solid #e4e8ec;">${htmlEsc(d.causa)}</td>
+        </tr>
+        <tr>
+          <td style="padding:11px 14px;font-weight:600;color:#101820;border-bottom:1px solid #e4e8ec;">Monto Afectado</td>
+          <td style="padding:11px 14px;font-size:17px;font-weight:700;color:#101820;border-bottom:1px solid #e4e8ec;">${monto}</td>
+        </tr>
+        <tr style="background:#F5F5F5;">
+          <td style="padding:11px 14px;font-weight:600;color:#101820;">Nueva Fecha de Proyección</td>
+          <td style="padding:11px 14px;font-weight:700;color:#97D700;font-size:15px;">${htmlEsc(mes)} ${Number(d.nuevoAnio)}</td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="padding:24px 32px;">
+      <table width="100%" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="background:#F5F5F5;border-left:4px solid #97D700;padding:16px 20px;border-radius:0 4px 4px 0;">
+            <p style="margin:0 0 8px;font-weight:700;font-size:12px;color:#101820;text-transform:uppercase;letter-spacing:.5px;">Comentario del PM</p>
+            <p style="margin:0;font-size:14px;color:#717C7D;line-height:1.7;white-space:pre-wrap;">${htmlEsc(d.comentario)}</p>
+          </td>
+        </tr>
+      </table>
+    </td>
+  </tr>
+  <tr>
+    <td style="background:#F5F5F5;padding:16px 32px;border-top:1px solid #e4e8ec;">
+      <p style="margin:0;font-size:11px;color:#919D9D;text-align:center;line-height:1.6;">
+        <strong style="color:#717C7D;">Cen Systems S.A. de C.V.</strong> &nbsp;|&nbsp; Cisco Gold Partner<br>
+        Este mensaje es propiedad de Cen Systems S.A. de C.V., queda prohibido cualquier uso o reproducción no autorizada.<br>
+        <span style="color:#c0c5c5;">${htmlEsc(ts)}</span>
+      </p>
+    </td>
+  </tr>
+</table>
+</td></tr>
+</table>
+</body></html>`;
 
   const res = await fetch(
     `https://graph.microsoft.com/v1.0/users/${SENDER}/sendMail`,
@@ -143,7 +229,7 @@ async function sendEmail(token, d, ts) {
       }),
     }
   );
-  if (![200, 202].includes(res.status)) throw new Error(`sendMail error: ${res.status} ${await res.text()}`);
+  if (![200, 202].includes(res.status)) throw new Error('Error al enviar el correo de notificación.');
 }
 
 exports.handler = async (event) => {
@@ -151,18 +237,46 @@ exports.handler = async (event) => {
 
   try {
     const d = JSON.parse(event.body || '{}');
-    const required = ['proyecto','nombre','nombreCliente','pmNombre','pmEmail','causa','monto','nuevoMes','nuevoAnio','comentario'];
+
+    // Validate required fields
+    const required = ['proyecto','nombre','nombreCliente','pmNombre','pmEmail',
+                      'causa','monto','nuevoMes','nuevoAnio','comentario'];
     const missing = required.filter(f => !String(d[f] ?? '').trim());
-    if (missing.length) return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: `Faltan: ${missing.join(', ')}` }) };
+    if (missing.length) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Faltan campos requeridos.' }) };
+    }
+
+    // Validate pmEmail is in allowed list (prevent PM impersonation)
+    if (!ALLOWED_PM_EMAILS.has(d.pmEmail.toLowerCase())) {
+      return { statusCode: 403, headers: CORS, body: JSON.stringify({ error: 'El correo del PM no está autorizado.' }) };
+    }
+
+    // Validate causa is in allowed list (prevent injection via causa field)
+    if (!ALLOWED_CAUSES.has(d.causa)) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Causa no válida.' }) };
+    }
+
+    // Validate numeric fields
+    const monto = parseFloat(d.monto);
+    const nuevoMes = parseInt(d.nuevoMes, 10);
+    const nuevoAnio = parseInt(d.nuevoAnio, 10);
+    if (isNaN(monto) || monto <= 0) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Monto inválido.' }) };
+    }
+    if (nuevoMes < 1 || nuevoMes > 12) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Mes inválido.' }) };
+    }
+    if (nuevoAnio < 2020 || nuevoAnio > 2035) {
+      return { statusCode: 400, headers: CORS, body: JSON.stringify({ error: 'Año inválido.' }) };
+    }
 
     const now = new Date();
     const ts = now.toISOString().replace('T', ' ').slice(0, 16) + ' UTC';
-    const nueva_fecha = `${d.nuevoAnio}-${String(d.nuevoMes).padStart(2, '0')}`;
+    const nueva_fecha = `${nuevoAnio}-${String(nuevoMes).padStart(2, '0')}`;
 
     const row = [
       ts, d.pmNombre, d.pmEmail, d.proyecto, d.nombre, d.nombreCliente,
-      d.causa, Number(d.monto), Number(d.nuevoMes), Number(d.nuevoAnio),
-      nueva_fecha, d.moneda || '', d.comentario,
+      d.causa, monto, nuevoMes, nuevoAnio, nueva_fecha, d.moneda || '', d.comentario,
     ];
 
     const [_, token] = await Promise.all([
@@ -170,10 +284,17 @@ exports.handler = async (event) => {
       getGraphToken(),
     ]);
 
-    await sendEmail(token, d, ts);
+    await sendEmail(token, { ...d, monto, nuevoMes, nuevoAnio }, ts);
 
-    return { statusCode: 200, headers: CORS, body: JSON.stringify({ success: true, message: 'Notificación enviada correctamente.' }) };
+    return {
+      statusCode: 200, headers: CORS,
+      body: JSON.stringify({ success: true, message: 'Notificación enviada correctamente.' }),
+    };
+
   } catch (e) {
-    return { statusCode: 500, headers: CORS, body: JSON.stringify({ error: e.message }) };
+    return {
+      statusCode: 500, headers: CORS,
+      body: JSON.stringify({ error: 'Ocurrió un error al procesar la solicitud. Intenta de nuevo.' }),
+    };
   }
 };

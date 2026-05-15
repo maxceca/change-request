@@ -1,7 +1,7 @@
 const snowflake = require('snowflake-sdk');
 
 const CORS = {
-  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Origin':  process.env.ALLOWED_ORIGIN || '*',
   'Access-Control-Allow-Headers': 'Content-Type',
   'Access-Control-Allow-Methods': 'GET, OPTIONS',
   'Content-Type': 'application/json',
@@ -45,14 +45,20 @@ exports.handler = async (event) => {
     });
 
     conn.connect((err) => {
-      if (err) return resolve({ statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message }) });
+      if (err) {
+        console.error('Snowflake connect error:', err.message);
+        return resolve({ statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'Error al conectar con la base de datos. Intenta de nuevo.' }) });
+      }
 
       conn.execute({
         sqlText: QUERY,
         binds: [like, like, like, like, like, like, like, like],
         complete: (err, _stmt, rows) => {
           conn.destroy(() => {});
-          if (err) return resolve({ statusCode: 500, headers: CORS, body: JSON.stringify({ error: err.message }) });
+          if (err) {
+            console.error('Snowflake query error:', err.message);
+            return resolve({ statusCode: 500, headers: CORS, body: JSON.stringify({ error: 'Error al consultar proyectos. Intenta de nuevo.' }) });
+          }
 
           const results = (rows || []).map(r => ({
             proyecto:       r.PROYECTO       || '',
